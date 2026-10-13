@@ -28,6 +28,7 @@ public class MaMDataConfig implements ConfigData {
 		public NowPlayingType now_playing_type = NowPlayingType.NONE;
 		public String now_playing_id = "";
 		public String now_playing_name = "";
+		public String custom_playlist_source = "";
 		public List<String> custom_playlist_tracks = new ArrayList<>();
 		public List<String> custom_playlist_discs = new ArrayList<>();
 		public List<Entry> favourites = new ArrayList<>();

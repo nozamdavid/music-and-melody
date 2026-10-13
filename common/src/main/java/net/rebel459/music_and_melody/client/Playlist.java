@@ -71,6 +71,17 @@ public class Playlist {
         return this.source != null;
     }
 
+    public boolean isWritable() {
+        if (this.source == null) return false;
+        try {
+            Path target = this.source.toAbsolutePath().normalize();
+            Path root = DIRECTORY.toAbsolutePath().normalize();
+            return target.startsWith(root) && !target.equals(root);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     public boolean deleteCustom() {
         if (this.source == null) return false;
         try {
@@ -144,10 +155,31 @@ public class Playlist {
         }
     }
 
-    public static synchronized boolean saveCustomPlaylist(Minecraft minecraft, String playlistName, String iconPath, String pathOverride) {
-        List<MaMDataConfig.Entry> queuedSongs = PlaylistHelper.customPlaylistEntries();
+    public static synchronized boolean replaceCustomPlaylist(Minecraft minecraft, Playlist replacing, String playlistName, String iconPath) {
+        if (replacing == null || !replacing.isWritable() || playlistName == null) return false;
         String trimmedName = playlistName.trim();
-        if (queuedSongs.isEmpty() || trimmedName.isEmpty()) return false;
+        if (trimmedName.isEmpty()) return false;
+        return writeCustomPlaylist(replacing.source, trimmedName, iconPath);
+    }
+
+    public static synchronized boolean saveCustomPlaylist(Minecraft minecraft, String playlistName, String iconPath, String pathOverride) {
+        if (playlistName == null) return false;
+        String trimmedName = playlistName.trim();
+        if (trimmedName.isEmpty()) return false;
+        Path target = configTarget(trimmedName, pathOverride);
+        if (target == null) return false;
+        return writeCustomPlaylist(target, trimmedName, iconPath);
+    }
+
+    private static synchronized boolean writeCustomPlaylist(Path target, String trimmedName, String iconPath) {
+        List<MaMDataConfig.Entry> queuedSongs = PlaylistHelper.customPlaylistEntries();
+        if (queuedSongs.isEmpty() || trimmedName == null || trimmedName.trim().isEmpty()) return false;
+        String name = trimmedName.trim();
+
+        if (target == null) return false;
+        Path root = DIRECTORY.toAbsolutePath().normalize();
+        Path normalizedTarget = target.toAbsolutePath().normalize();
+        if (!normalizedTarget.startsWith(root) || normalizedTarget.equals(root)) return false;
 
         try {
             Files.createDirectories(DIRECTORY);
@@ -155,33 +187,40 @@ public class Playlist {
             return false;
         }
 
-        Path path = configTarget(trimmedName, pathOverride);
-        if (path == null) return false;
-        Identifier icon = iconPath.isBlank()
+        Identifier icon = (iconPath == null || iconPath.isBlank())
                 ? Identifier.withDefaultNamespace("textures/misc/unknown_pack.png")
                 : Identifier.tryParse(iconPath.trim());
         if (icon == null) return false;
 
-        JsonObject root = new JsonObject();
+        JsonObject rootJson = new JsonObject();
         JsonObject nameObject = new JsonObject();
-        nameObject.addProperty("text", trimmedName);
-        root.add("name", nameObject);
-        root.addProperty("icon", icon.toString());
-        root.add("entries", identifierEntries(queuedSongs));
+        nameObject.addProperty("text", name);
+        rootJson.add("name", nameObject);
+        rootJson.addProperty("icon", icon.toString());
+        rootJson.add("entries", identifierEntries(queuedSongs));
 
         try {
-            Files.createDirectories(path.getParent());
+            if (target.getParent() != null) {
+                Files.createDirectories(target.getParent());
+            }
         } catch (IOException ignored) {
             return false;
         }
 
-        try (Writer writer = Files.newBufferedWriter(path)) {
-            GSON.toJson(root, writer);
+        try (Writer writer = Files.newBufferedWriter(target)) {
+            GSON.toJson(rootJson, writer);
         } catch (IOException ignored) {
             return false;
         }
 
         reloadConfigPlaylists();
+
+        Playlist saved = PLAYLISTS.stream()
+                .filter(p -> p != null && p.isWritable() && p.source.toAbsolutePath().normalize().equals(normalizedTarget))
+                .findFirst()
+                .orElse(null);
+        PlaylistHelper.setCustomPlaylistSource(saved);
+
         return true;
     }
 
@@ -243,7 +282,7 @@ public class Playlist {
     }
 
     private static Path configTarget(String name, String pathOverride) {
-        String rawPath = pathOverride.trim().isEmpty() ? sanitize(name) : sanitizePath(pathOverride.trim());
+        String rawPath = (pathOverride == null || pathOverride.trim().isEmpty()) ? sanitize(name) : sanitizePath(pathOverride.trim());
         if (rawPath.isBlank()) return null;
         if (!rawPath.toLowerCase(Locale.ROOT).endsWith(".json")) rawPath += ".json";
         Path target = DIRECTORY.resolve(rawPath).normalize();

@@ -12,23 +12,29 @@ import net.rebel459.music_and_melody.client.util.CombatStatus;
 import net.rebel459.music_and_melody.config.MaMClientConfig;
 import net.rebel459.unified.api.client.core.UnifiedClientEvents;
 import net.rebel459.unified.api.client.core.UnifiedClientHelpers;
-import net.rebel459.unified.api.client.core.UnifiedClientRegistries;
-import net.rebel459.unified.api.core.UnifiedHelpers;
 import net.rebel459.unified.api.event.EventTiming;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.function.Supplier;
 
 public final class MusicAndMelodyClient {
 
-    public static UnifiedClientRegistries.KeyMappings KEY_MAPPINGS = UnifiedClientRegistries.KeyMappings.create(MusicAndMelody.MOD_ID);
-
-    public static final Supplier<KeyMapping> PLAYLIST_KEY = KEY_MAPPINGS.registerKeybind(
+    public static final Supplier<KeyMapping> PLAYLIST_KEY = registerKeybind(
             "music_player",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_H,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_M,
             KeyMapping.Category.MISC
     );
+
+    private static Supplier<KeyMapping> registerKeybind(String name, InputConstants.Type type, int keyCode, KeyMapping.Category category) {
+        KeyMapping keyMapping = new KeyMapping(
+                "key." + MusicAndMelody.MOD_ID + "." + name,
+                type,
+                keyCode,
+                category
+        );
+        UnifiedClientHelpers.KEY_MAPPINGS.register(keyMapping);
+        return () -> keyMapping;
+    }
 
     public static void initRegistries() {
         if (MaMClientConfig.get().music_rebalance) {

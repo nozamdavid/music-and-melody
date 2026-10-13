@@ -2,6 +2,7 @@
   "required": true,
   "package": "net.rebel459.music_and_melody.mixin",
   "compatibilityLevel": "JAVA_25",
+  "plugin": "net.rebel459.music_and_melody.mixin.MaMMixinPlugin",
   "mixins": [],
   "client": [
     "integration.enderscape.EnderscapeClientNetworkingMixin"

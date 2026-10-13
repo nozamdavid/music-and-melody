@@ -78,6 +78,7 @@ public class MusicPlayerScreen extends Screen {
     private static final int MIN_MIDDLE_WIDTH = 180;
     private static final int MIN_RIGHT_WIDTH = 124;
     private static final int TRACK_ROW_HEIGHT = 24;
+    private static final int PLAYLIST_BOTTOM_PADDING = 12;
     private static final int TRACK_NUMBER_OFFSET = 15;
     private static final int TRACK_TEXT_OFFSET = 32;
     private static final int HOME_BUTTON_COUNT = 6;
@@ -398,6 +399,11 @@ public class MusicPlayerScreen extends Screen {
         int listTop = PANEL_TOP + 42;
         this.mainQueueList = this.addRenderableWidget(new QueueList(this, this.minecraft, this.middleX, this.middleWidth, listTop, this.contentBottom - 6, false));
 
+        buildCustomPlaylistActions();
+        buildMusicToggles();
+    }
+
+    private void buildCustomPlaylistActions() {
         this.saveButton = this.addRenderableWidget(new IconButton(Component.translatable("button.music_and_melody.save"), IconButton.icon("save"), button ->
                 openSavePlaylistScreen()));
         int actionGroupWidth = IconButton.SIZE * 3 + 5 * 2;
@@ -415,7 +421,6 @@ public class MusicPlayerScreen extends Screen {
         this.clearButton.setX(actionX + (IconButton.SIZE + 5) * 2);
         this.clearButton.setY(playerActionY());
 
-        buildMusicToggles();
     }
 
     private void buildDetailsPage() {
@@ -428,6 +433,11 @@ public class MusicPlayerScreen extends Screen {
         this.contentTrackList = this.addRenderableWidget(new ContentTrackList(this, this.minecraft, this.middleX, this.middleWidth, PANEL_TOP + 42, this.contentBottom - 6));
         if (this.viewedRemotePack != null) {
             buildRemoteDetailsAction();
+            return;
+        }
+        if (PlaylistHelper.isQueueCustom() && PlaylistHelper.hasCustomPlaylistSongs()) {
+            buildCustomPlaylistActions();
+            buildMusicToggles();
             return;
         }
         int actionWidth = this.rightWidth - 14;
@@ -1059,7 +1069,7 @@ public class MusicPlayerScreen extends Screen {
 
     private void openSavePlaylistScreen() {
         closeSearch();
-        this.minecraft.gui.setScreen(new SavePlaylistScreen(this));
+        this.minecraft.gui.setScreen(new SavePlaylistScreen(this, PlaylistHelper.customPlaylistSource().orElse(null)));
     }
 
     private void openReplacePlaylistScreen() {
@@ -1408,7 +1418,7 @@ public class MusicPlayerScreen extends Screen {
     private void refreshAfterQueueMutation() {
         refreshQueueLists();
         refreshFavouriteList();
-        if (this.page == Page.NOW_PLAYING) this.rebuildWidgets();
+        if (this.page == Page.NOW_PLAYING || this.page == Page.DETAILS) this.rebuildWidgets();
     }
 
     void refreshQueueLists() {
@@ -1509,7 +1519,7 @@ public class MusicPlayerScreen extends Screen {
 
     private void loadViewedContentNow(List<MaMDataConfig.Entry> songs) {
         if (this.viewedContent == null || songs.isEmpty()) return;
-        if (!PlaylistHelper.replaceCustomPlaylist(songs)) return;
+        if (!PlaylistHelper.replaceCustomPlaylist(songs, this.viewedContent.playlist())) return;
         this.viewedContent = null;
         this.page = Page.NOW_PLAYING;
         closeSearch();
@@ -2768,6 +2778,11 @@ public class MusicPlayerScreen extends Screen {
             refresh();
         }
 
+        @Override
+        protected int contentHeight() {
+            return super.contentHeight() + PLAYLIST_BOTTOM_PADDING;
+        }
+
         void refresh() {
             double scroll = this.scrollAmount();
             this.clearEntries();
@@ -3222,6 +3237,11 @@ public class MusicPlayerScreen extends Screen {
             super(screen, minecraft, panelX, panelWidth, top, bottom, compact ? 21 : TRACK_ROW_HEIGHT);
             this.compact = compact;
             refresh();
+        }
+
+        @Override
+        protected int contentHeight() {
+            return super.contentHeight() + PLAYLIST_BOTTOM_PADDING;
         }
 
         void refresh() {

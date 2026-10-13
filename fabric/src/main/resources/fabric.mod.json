@@ -32,7 +32,7 @@
   ],
   "accessWidener": "music_and_melody.classtweaker",
   "depends": {
-    "fabricloader": ">=0.18",
+    "fabricloader": ">=${fabric_loader}",
     "fabric-api": "*",
     "minecraft": "${fabric_minecraft_version}",
     "java": ">=25",

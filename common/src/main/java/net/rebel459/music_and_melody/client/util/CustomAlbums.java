@@ -19,6 +19,7 @@ import net.rebel459.music_and_melody.client.Album;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -37,9 +38,13 @@ import java.util.stream.Collectors;
 
 import net.rebel459.music_and_melody.config.MaMClientConfig;
 import net.rebel459.music_and_melody.config.MaMDataConfig;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
+import org.lwjgl.sdl.SDL_DialogFileCallback;
+import org.lwjgl.sdl.SDL_DialogFileFilter;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.Pointer;
+
+import static org.lwjgl.sdl.SDLDialog.*;
+import static org.lwjgl.sdl.SDLProperties.*;
 
 public final class CustomAlbums {
 
@@ -225,28 +230,49 @@ public final class CustomAlbums {
     }
 
     private static void chooseFiles(String title, boolean multiple, Consumer<List<Path>> callback) {
-        Thread chooser = new Thread(() -> {
-            List<Path> selected = new ArrayList<>();
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                String[] extensions = new String[] {"*.ogg", "*.mp3", "*.flac", "*.wav"};
-                PointerBuffer filters = stack.mallocPointer(extensions.length);
-                for (String extension : extensions) filters.put(stack.UTF8(extension));
-                filters.flip();
-                String result = TinyFileDialogs.tinyfd_openFileDialog(title, "", filters, ".ogg, .mp3, .flac or .wav", multiple);
-                if (result != null && !result.isBlank()) {
-                    for (String file : result.split("\\|")) {
-                        Path path = Path.of(file);
-                        if (Files.isRegularFile(path) && isSupportedAudio(path)) {
-                            selected.add(path);
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            // SDL dialogs return asynchronously, so their native filters outlive this call.
+            ByteBuffer filterName = MemoryUtil.memUTF8(".ogg, .mp3, .flac or .wav");
+            ByteBuffer filterPattern = MemoryUtil.memUTF8("ogg;mp3;flac;wav");
+            SDL_DialogFileFilter.Buffer filters = SDL_DialogFileFilter.malloc(1)
+                    .name(filterName).pattern(filterPattern);
+            int properties = SDL_CreateProperties();
+            SDL_SetPointerProperty(properties, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, filters.address());
+            SDL_SetNumberProperty(properties, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, 1);
+            SDL_SetPointerProperty(properties, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, client.getWindow().handle());
+            SDL_SetBooleanProperty(properties, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, multiple);
+            SDL_SetStringProperty(properties, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
+            SDL_DialogFileCallback nativeCallback = new SDL_DialogFileCallback() {
+                @Override
+                public void invoke(long userdata, long fileList, int filter) {
+                    List<Path> selected = new ArrayList<>();
+                    try {
+                        if (fileList != MemoryUtil.NULL) {
+                            for (int index = 0; ; index++) {
+                                long file = MemoryUtil.memGetAddress(fileList + (long) index * Pointer.POINTER_SIZE);
+                                if (file == MemoryUtil.NULL) break;
+                                Path path = Path.of(MemoryUtil.memUTF8(file));
+                                if (Files.isRegularFile(path) && isSupportedAudio(path)) selected.add(path);
+                            }
                         }
+                    } catch (RuntimeException ignored) {
+                    } finally {
+                        SDL_DestroyProperties(properties);
+                        filters.free();
+                        MemoryUtil.memFree(filterName);
+                        MemoryUtil.memFree(filterPattern);
+                        free();
                     }
+                    client.schedule(() -> callback.accept(selected));
                 }
+            };
+            try {
+                SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_OPENFILE, nativeCallback, MemoryUtil.NULL, properties);
             } catch (RuntimeException ignored) {
+                nativeCallback.invoke(MemoryUtil.NULL, MemoryUtil.NULL, -1);
             }
-            Minecraft.getInstance().execute(() -> callback.accept(selected));
-        }, "Music & Melody file picker");
-        chooser.setDaemon(true);
-        chooser.start();
+        });
     }
 
     private static boolean write(String idPath, String name, String icon, List<Path> tracks) {

@@ -50,7 +50,7 @@ public class StructureMusicHandler {
                     HashSet<Identifier> structureIds = new HashSet<>();
                     HashSet<Identifier> structureTags = new HashSet<>();
                     for (Holder<Structure> structure : levelStructures) {
-                        if (structureManager.getStructureWithPieceAt(pos, structure.value()).isValid()) {
+                        if (structureManager.getStructureWithPieceAt(pos, candidate -> candidate.equals(structure)).isValid()) {
                             if (structure.unwrapKey().isEmpty()) continue;
                             Identifier id = structure.unwrapKey().get().identifier();
                             structureIds.add(id);

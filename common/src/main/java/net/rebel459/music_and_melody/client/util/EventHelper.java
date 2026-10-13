@@ -27,7 +27,7 @@ import net.rebel459.music_and_melody.client.Playlist;
 import net.rebel459.music_and_melody.config.MaMClientConfig;
 import net.rebel459.music_and_melody.config.MaMDataConfig;
 import net.rebel459.music_and_melody.network.StructureMusicHandler;
-import net.rebel459.unified.api.core.UnifiedInstance;
+import net.rebel459.unified.api.core.UnifiedPlatform;
 import net.rebel459.unified.api.util.VanillaVersion;
 
 import java.util.*;
@@ -676,7 +676,7 @@ public class EventHelper {
             case BELOW_Y -> result(player != null, () -> player.blockPosition().getY() < condition.intValue().get());
             case BELOW_VERSION -> result(VanillaVersion.parse(condition.stringValue().get()).compareTo(VanillaVersion.getVanillaVersion()) > 0);
             case BOSSBAR -> result(level != null, () -> client.gui.hud.getBossOverlay().events.values().stream().anyMatch(event -> event.getName().getString().equals(Component.translatable(condition.stringValue().get()).getString())));
-            case MOD_LOADED -> result(UnifiedInstance.isModLoaded(condition.stringValue().get()));
+            case MOD_LOADED -> result(UnifiedPlatform.isModLoaded(condition.stringValue().get()));
             case ALBUM_LOADED -> result(Album.LOADED_ALBUMS.contains(condition.idValue().get()));
             case RANDOM_CHANCE -> result(!rollRandomChance || SoundInstance.createUnseededRandom().nextFloat() <= condition.floatValue().get());
             case RIDDEN_ENTITY -> result(player != null, () -> player.getVehicle() != null && player.getVehicle().is(ResourceKey.create(Registries.ENTITY_TYPE, condition.idValue().get())));

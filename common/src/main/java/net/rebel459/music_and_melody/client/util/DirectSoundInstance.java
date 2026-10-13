@@ -21,7 +21,7 @@ import java.util.Optional;
 
 public class DirectSoundInstance extends AbstractSoundInstance {
 
-	private final WeighedSoundEvents soundEvent;
+	private final WeighedSoundEvents fallbackSoundEvent;
 	private final Type type;
 
 	public static DirectSoundInstance createTracksOnly(SafeIdentifier id, float volume, boolean loop) {
@@ -104,7 +104,7 @@ public class DirectSoundInstance extends AbstractSoundInstance {
 		this.type = type;
 
 		if (type == Type.POOLS) {
-			this.soundEvent = null;
+			this.fallbackSoundEvent = null;
 		}
 		else {
 			this.sound = new Sound(
@@ -117,23 +117,23 @@ public class DirectSoundInstance extends AbstractSoundInstance {
 					false,
 					16
 			);
-			this.soundEvent = new WeighedSoundEvents(resolved.playableId(), null);
-			this.soundEvent.addSound(this.sound);
+			this.fallbackSoundEvent = new WeighedSoundEvents(resolved.playableId(), null);
+			this.fallbackSoundEvent.addSound(this.sound);
 		}
 	}
 
 	@Override
-	public WeighedSoundEvents resolve(@NonNull SoundManager soundManager) {
-		if (this.type == Type.TRACKS) return this.soundEvent;
+	public WeighedSoundEvents getOrResolve(@NonNull SoundManager soundManager) {
+		if (this.type == Type.TRACKS) return this.soundEvent = this.fallbackSoundEvent;
 
 		WeighedSoundEvents registered = soundManager.getSoundEvent(this.identifier);
 		if (registered == null) {
-			if (this.type == Type.ALL) return this.soundEvent;
+			if (this.type == Type.ALL) return this.soundEvent = this.fallbackSoundEvent;
 			throw new IllegalArgumentException("Sound event " + this.identifier + " does not exist");
 		}
 
 		this.sound = registered.getSound(this.random);
-		return registered;
+		return this.soundEvent = registered;
 	}
 
 	public void setLooping(boolean looping) {

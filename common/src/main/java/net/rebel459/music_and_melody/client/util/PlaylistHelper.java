@@ -138,6 +138,24 @@ public final class PlaylistHelper {
         return CUSTOM_PLAYLIST.stream().map(PlaylistHelper::copyEntry).toList();
     }
 
+    public static Optional<Playlist> customPlaylistSource() {
+        ensureLoaded();
+        String sourcePath = MaMDataConfig.get().player.custom_playlist_source;
+        if (sourcePath == null || sourcePath.isEmpty()) return Optional.empty();
+        return Playlist.PLAYLISTS.stream()
+                .filter(p -> p != null && p.isWritable() && sourcePath.equals(Playlist.configPlaylistPath(p)))
+                .findFirst();
+    }
+
+    public static void setCustomPlaylistSource(Playlist source) {
+        ensureLoaded();
+        MaMDataConfig config = MaMDataConfig.get();
+        config.player.custom_playlist_source = (source != null && source.isWritable())
+                ? Playlist.configPlaylistPath(source)
+                : "";
+        save();
+    }
+
     public static List<SafeIdentifier> customPlaylistSongs() {
         ensureLoaded();
         return CUSTOM_PLAYLIST.stream().map(PlaylistHelper::resolveEntry).flatMap(Optional::stream).toList();
@@ -155,7 +173,9 @@ public final class PlaylistHelper {
 
     public static void addToCustomPlaylist(MaMDataConfig.Entry entry) {
         ensureLoaded();
-        if (validPlaylistEntry(entry) && !isInCustomPlaylist(entry)) {
+        if (!validPlaylistEntry(entry)) return;
+        boolean changed = beginCustomPlaylistEdit();
+        if (!isInCustomPlaylist(entry)) {
             if (entry.isTrack()) {
                 int firstDisc = 0;
                 while (firstDisc < CUSTOM_PLAYLIST.size() && CUSTOM_PLAYLIST.get(firstDisc).isTrack()) firstDisc++;
@@ -163,6 +183,9 @@ public final class PlaylistHelper {
             } else {
                 CUSTOM_PLAYLIST.add(copyEntry(entry));
             }
+            changed = true;
+        }
+        if (changed) {
             syncCustomQueueAfterMutation();
             save();
         }
@@ -170,8 +193,8 @@ public final class PlaylistHelper {
 
     public static void addAllToCustomPlaylist(Collection<MaMDataConfig.Entry> entries) {
         ensureLoaded();
-        if (entries == null) return;
-        boolean changed = false;
+        if (entries == null || entries.stream().noneMatch(PlaylistHelper::validPlaylistEntry)) return;
+        boolean changed = beginCustomPlaylistEdit();
         for (MaMDataConfig.Entry entry : entries) {
             if (validPlaylistEntry(entry) && !isInCustomPlaylist(entry)) {
                 CUSTOM_PLAYLIST.add(copyEntry(entry));
@@ -186,6 +209,10 @@ public final class PlaylistHelper {
     }
 
     public static boolean replaceCustomPlaylist(Collection<MaMDataConfig.Entry> entries) {
+        return replaceCustomPlaylist(entries, null);
+    }
+
+    public static boolean replaceCustomPlaylist(Collection<MaMDataConfig.Entry> entries, Playlist source) {
         ensureLoaded();
         if (entries == null) return false;
         CUSTOM_PLAYLIST.clear();
@@ -195,6 +222,9 @@ public final class PlaylistHelper {
             }
         }
         normalizeCustomPlaylistOrder();
+        MaMDataConfig.get().player.custom_playlist_source = (source != null && source.isWritable())
+                ? Playlist.configPlaylistPath(source)
+                : "";
         syncCustomQueueAfterMutation();
         save();
         return !CUSTOM_PLAYLIST.isEmpty();
@@ -226,7 +256,7 @@ public final class PlaylistHelper {
 
     public static void clearCustomPlaylist() {
         ensureLoaded();
-        if (CUSTOM_PLAYLIST.isEmpty()) return;
+        MaMDataConfig.get().player.custom_playlist_source = "";
         CUSTOM_PLAYLIST.clear();
         syncCustomQueueAfterMutation();
         save();
@@ -942,6 +972,9 @@ public final class PlaylistHelper {
         CUSTOM_PLAYLIST.clear();
         queuePaused = true;
         MaMDataConfig config = MaMDataConfig.get();
+        if (config.player.custom_playlist_source == null) {
+            config.player.custom_playlist_source = "";
+        }
         loop = config.player.loop;
         shuffle = config.player.shuffle;
         for (String track : config.player.custom_playlist_tracks) {
@@ -1130,6 +1163,35 @@ public final class PlaylistHelper {
         queuePaused = wasPaused;
         if (pausedQueueSong != null) pausedQueueIndex = current;
         rebuildShuffleOrder(shuffle ? QUEUED_SONGS.get(current) : null);
+    }
+
+    private static boolean beginCustomPlaylistEdit() {
+        if (MaMDataConfig.get().player.now_playing_type == MaMDataConfig.NowPlayingType.NONE) return false;
+        // Keep a loaded draft; otherwise edit a copy of the current playback queue.
+        if (CUSTOM_PLAYLIST.isEmpty()) {
+            Playlist original = currentPlayingPlaylist();
+            MaMDataConfig.get().player.custom_playlist_source = (original != null && original.isWritable())
+                    ? Playlist.configPlaylistPath(original)
+                    : "";
+            for (SafeIdentifier song : QUEUED_SONGS) {
+                Identifier disc = QUEUED_DISCS.get(song);
+                CUSTOM_PLAYLIST.add(disc == null ? trackEntry(song) : discEntry(disc));
+            }
+            normalizeCustomPlaylistOrder();
+        }
+        clearQueueType();
+        return true;
+    }
+
+    private static Playlist currentPlayingPlaylist() {
+        MaMDataConfig.Player player = MaMDataConfig.get().player;
+        if (player.now_playing_type != MaMDataConfig.NowPlayingType.PLAYLIST) return null;
+        Identifier id = Identifier.tryParse(player.now_playing_id);
+        if (id == null) return null;
+        for (Playlist playlist : Playlist.PLAYLISTS) {
+            if (playlist.playlist.equals(id)) return playlist;
+        }
+        return null;
     }
 
     private static void materializeQueue(Collection<MaMDataConfig.Entry> entries) {

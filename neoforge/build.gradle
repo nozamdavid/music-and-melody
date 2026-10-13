@@ -11,7 +11,7 @@ dependencies {
     jarJar("javazoom:jlayer:1.0.1")
     jarJar("org.jflac:jflac-codec:1.5.2")
 
-    compileOnly("maven.modrinth:simple-music-control:$simple_music_control-neoforge")
+    // The shared compile-only API comes from common; no 26.3 NeoForge release is published.
     compileOnly("maven.modrinth:fzzy-config:$fzzy_version+neoforge")
     compileOnly("maven.modrinth:kotlin-for-forge:$kotlin_neoforge")
     compileOnly("maven.modrinth:fancymenu:$fancymenu_version-neoforge")

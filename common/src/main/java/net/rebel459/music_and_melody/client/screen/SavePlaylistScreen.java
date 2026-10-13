@@ -175,7 +175,10 @@ class SavePlaylistScreen extends Screen {
     }
 
     private void save() {
-        if (Playlist.saveCustomPlaylist(this.minecraft, this.nameField.getValue(), this.iconField.getValue(), this.pathField.getValue())) {
+        boolean saved = this.replacing == null
+                ? Playlist.saveCustomPlaylist(this.minecraft, this.nameField.getValue(), this.iconField.getValue(), this.pathField.getValue())
+                : Playlist.replaceCustomPlaylist(this.minecraft, this.replacing, this.nameField.getValue(), this.iconField.getValue());
+        if (saved) {
             this.onClose();
         }
     }
@@ -184,7 +187,8 @@ class SavePlaylistScreen extends Screen {
         if (this.saveButton == null) return;
         this.saveButton.active = !this.nameField.getValue().trim().isEmpty()
                 && iconValid()
-                && Playlist.canWriteConfigPlaylist(this.nameField.getValue(), this.pathField.getValue());
+                && (this.replacing != null ? this.replacing.isWritable()
+                : Playlist.canWriteConfigPlaylist(this.nameField.getValue(), this.pathField.getValue()));
         this.saveButton.setMessage(saveMessage());
     }
 
@@ -194,7 +198,7 @@ class SavePlaylistScreen extends Screen {
     }
 
     private Component saveMessage() {
-        return Component.translatable(!this.nameField.getValue().trim().isEmpty()
+        return Component.translatable(this.replacing != null || !this.nameField.getValue().trim().isEmpty()
                 && Playlist.configPlaylistExists(this.nameField.getValue(), this.pathField == null ? "" : this.pathField.getValue())
                 ? "button.music_and_melody.overwrite"
                 : "button.music_and_melody.save");
